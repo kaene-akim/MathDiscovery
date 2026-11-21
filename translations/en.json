@@ -1,0 +1,30 @@
+{
+  "settings.rotation_minutes.label": "Minutes between discoveries",
+  "settings.rotation_minutes.description": "How often a new fact is presented. Displaying a fact never triggers a download.",
+
+  "settings.difficulty.label": "Preferred difficulty",
+  "settings.difficulty.description": "When set, facts at this level are favoured without removing the rest of the library.",
+  "settings.difficulty.any": "Mixed (recommended)",
+  "settings.difficulty.curiosity": "Mathematical curiosities",
+  "settings.difficulty.first_year": "First year",
+  "settings.difficulty.intermediate": "Intermediate",
+  "settings.difficulty.advanced": "Advanced",
+
+  "settings.topics.label": "Preferred subjects",
+  "settings.topics.description": "Subject names such as Number Theory, Graph Theory or Topology. Empty means every subject.",
+
+  "settings.show_explanation.label": "Show explanation on the desktop",
+  "settings.show_explanation.description": "Hide the short explanation for a smaller card. The reader panel always shows it.",
+
+  "settings.card_transparency.label": "Card transparency",
+  "settings.card_transparency.description": "0% is a solid card; 100% removes the card background. Text stays fully readable at every value.",
+
+  "settings.enable_sources.label": "Enable supplementary sources",
+  "settings.enable_sources.description": "Fetch a small amount of reference metadata from Wikipedia, Quanta Magazine and Math Stack Exchange at most once a day. The curated library works fully offline.",
+
+  "settings.source_cadence_hours.label": "Source check interval (hours)",
+  "settings.source_cadence_hours.description": "Minimum time between source checks. Failed checks back off automatically.",
+
+  "settings.catch_up_on_start.label": "Catch up after a long absence",
+  "settings.catch_up_on_start.description": "Rotate once at startup when the interval elapsed while Noctalia was not running."
+}

@@ -1,0 +1,112 @@
+# Mathematical Discovery — a Noctalia plugin.
+#
+# Requires Noctalia >= 5.5.0 (plugin API 52).
+#
+# Architecture:
+#   [[service]]        discovery.luau owns the dataset, cache, history and rotation
+#   [[desktop_widget]] desktop.luau    renders the main desktop card
+#   [[panel]]          reader.luau     full, scrollable scholarly view
+#
+# The three entries communicate exclusively through noctalia.state; durable data
+# lives in noctalia.pluginDataDir(). See README.md.
+
+id = "akim/math-discovery"
+name = "Mathematical Discovery"
+version = "1.0.0"
+plugin_api = 52
+author = "akim"
+license = "MIT"
+description = "An hourly undergraduate-mathematics discovery on your desktop."
+tags = ["education", "mathematics", "desktop-widget"]
+dependencies = ["xdg-utils"]
+
+# --- Shared plugin settings (edited in Settings -> Plugins) -----------------
+
+[[setting]]
+key = "rotation_minutes"
+type = "int"
+label_key = "settings.rotation_minutes.label"
+description_key = "settings.rotation_minutes.description"
+default = 60
+min = 5
+max = 1440
+
+[[setting]]
+key = "difficulty"
+type = "select"
+label_key = "settings.difficulty.label"
+description_key = "settings.difficulty.description"
+default = "any"
+options = [
+  { value = "any",          label_key = "settings.difficulty.any" },
+  { value = "curiosity",    label_key = "settings.difficulty.curiosity" },
+  { value = "first_year",   label_key = "settings.difficulty.first_year" },
+  { value = "intermediate", label_key = "settings.difficulty.intermediate" },
+  { value = "advanced",     label_key = "settings.difficulty.advanced" },
+]
+
+[[setting]]
+key = "topics"
+type = "string_list"
+label_key = "settings.topics.label"
+description_key = "settings.topics.description"
+default = []
+
+[[setting]]
+key = "show_explanation"
+type = "bool"
+label_key = "settings.show_explanation.label"
+description_key = "settings.show_explanation.description"
+default = true
+
+[[setting]]
+key = "card_transparency"
+type = "double"
+label_key = "settings.card_transparency.label"
+description_key = "settings.card_transparency.description"
+default = 20
+min = 0
+max = 100
+step = 1
+
+[[setting]]
+key = "enable_sources"
+type = "bool"
+label_key = "settings.enable_sources.label"
+description_key = "settings.enable_sources.description"
+default = true
+
+[[setting]]
+key = "source_cadence_hours"
+type = "int"
+label_key = "settings.source_cadence_hours.label"
+description_key = "settings.source_cadence_hours.description"
+default = 24
+min = 6
+max = 168
+visible_when = { key = "enable_sources", values = ["true"] }
+
+[[setting]]
+key = "catch_up_on_start"
+type = "bool"
+label_key = "settings.catch_up_on_start.label"
+description_key = "settings.catch_up_on_start.description"
+default = true
+
+# --- Entries ---------------------------------------------------------------
+
+[[service]]
+id = "discovery"
+entry = "discovery.luau"
+
+[[desktop_widget]]
+id = "fact"
+entry = "desktop.luau"
+
+[[panel]]
+id = "reader"
+entry = "reader.luau"
+width = 560
+height = 620
+placement = "floating"
+position = "center"
