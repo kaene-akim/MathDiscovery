@@ -27,6 +27,71 @@ M.KINDS = {
   algorithm = "Algorithm",
 }
 
+-- Broader areas used for filtering and for diversifying the rotation. Facts may
+-- declare one explicitly; older entries are classified from their subject.
+M.DOMAINS = {
+  "Mathematics",
+  "Applied Mathematics",
+  "Algorithms & Data Structures",
+  "Computer Science",
+  "Artificial Intelligence",
+}
+
+local DOMAIN_BY_SUBJECT = {
+  ["Mathematics of Computing"] = "Computer Science",
+  ["Computability & Logic"] = "Computer Science",
+  ["Complexity Theory"] = "Computer Science",
+  ["Cryptography & Security"] = "Computer Science",
+  ["Programming Languages"] = "Computer Science",
+  ["Distributed Systems"] = "Computer Science",
+  ["Information Theory"] = "Computer Science",
+  ["Computer Networks"] = "Computer Science",
+  ["Computer Architecture"] = "Computer Science",
+  ["Data Structures"] = "Algorithms & Data Structures",
+  ["Sorting & Searching"] = "Algorithms & Data Structures",
+  ["Graph Algorithms"] = "Algorithms & Data Structures",
+  ["Algorithm Analysis"] = "Algorithms & Data Structures",
+  ["Advanced Data Structures"] = "Algorithms & Data Structures",
+  ["Parallel & External Algorithms"] = "Algorithms & Data Structures",
+  ["String Algorithms"] = "Algorithms & Data Structures",
+  ["Machine Learning"] = "Artificial Intelligence",
+  ["Neural Networks"] = "Artificial Intelligence",
+  ["Optimization"] = "Artificial Intelligence",
+  ["Reinforcement Learning"] = "Artificial Intelligence",
+  ["Probabilistic AI"] = "Artificial Intelligence",
+  ["Natural Language Processing"] = "Artificial Intelligence",
+  ["Computer Vision"] = "Artificial Intelligence",
+  ["AI Safety & Interpretability"] = "Artificial Intelligence",
+  ["Machine Learning Theory"] = "Artificial Intelligence",
+  ["Multimodal AI"] = "Artificial Intelligence",
+  ["AI Systems & Evaluation"] = "Artificial Intelligence",
+  ["Game Theory"] = "Applied Mathematics",
+  ["Mathematical Biology"] = "Applied Mathematics",
+  ["Control Theory"] = "Applied Mathematics",
+  ["Signal Processing"] = "Applied Mathematics",
+  ["Stochastic Calculus"] = "Applied Mathematics",
+  ["Mathematical Economics"] = "Applied Mathematics",
+  ["Database Systems"] = "Computer Science",
+  ["Operating Systems"] = "Computer Science",
+  ["Compilers & Runtime Systems"] = "Computer Science",
+  ["Software Engineering"] = "Computer Science",
+  ["Computer Graphics"] = "Computer Science",
+  ["Parallel Computing"] = "Computer Science",
+  ["Formal Methods"] = "Computer Science",
+  ["Applied Mathematics"] = "Applied Mathematics",
+  ["Mathematical Physics"] = "Applied Mathematics",
+  ["Differential Equations"] = "Applied Mathematics",
+  ["Numerical Analysis"] = "Applied Mathematics",
+}
+
+local ALLOWED_DOMAIN = {}
+for _, domain in ipairs(M.DOMAINS) do ALLOWED_DOMAIN[domain] = true end
+
+function M.domainFor(declared, subject)
+  if type(declared) == "string" and ALLOWED_DOMAIN[declared] then return declared end
+  return DOMAIN_BY_SUBJECT[subject] or "Mathematics"
+end
+
 local function trim(value)
   return type(value) == "string" and noctalia.string.trim(value) or ""
 end
@@ -100,6 +165,7 @@ function M.normalise(raw, index)
     id            = id,
     title         = title,
     subject       = subject,
+    domain        = M.domainFor(raw.domain, subject),
     kind          = kind,
     difficulty    = difficulty,
     level         = M.DIFFICULTY_LABELS[difficulty],

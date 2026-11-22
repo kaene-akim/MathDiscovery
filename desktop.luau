@@ -11,6 +11,14 @@ local READER_ID = "akim/math-discovery:reader"
 -- Keep the bundled face: without it, this setup can fall back to the shell's
 -- monospace font, which makes the card look cramped and degrades when scaled.
 local SERIF = "Noto Serif"
+
+local DOMAIN_SHORT = {
+  ["Mathematics"] = "Math",
+  ["Applied Mathematics"] = "Applied",
+  ["Algorithms & Data Structures"] = "ADS",
+  ["Computer Science"] = "CS",
+  ["Artificial Intelligence"] = "AI",
+}
 if type(noctalia.loadFont) == "function" then
   local family = noctalia.loadFont("fonts/NotoSerif-Regular.ttf")
   if type(family) == "string" and family ~= "" then SERIF = family end
@@ -47,6 +55,8 @@ local function render()
     local fact = view.fact or {}
     local title = fact.title or ""
     local topic = fact.subject or "Mathematics"
+    local shortDomain = DOMAIN_SHORT[fact.domain or ""]
+    if shortDomain then topic = shortDomain .. " · " .. topic end
     local statement = fact.statement or ""
 
     -- 1. Theorem name, when the entry has one.

@@ -12,12 +12,13 @@
 
 id = "akim/math-discovery"
 name = "Mathematical Discovery"
-version = "1.0.0"
+version = "1.1.0"
 plugin_api = 52
 author = "akim"
 license = "MIT"
-description = "An hourly undergraduate-mathematics discovery on your desktop."
-tags = ["education", "mathematics", "desktop-widget"]
+description = "An hourly discovery from mathematics, algorithms, computer science and AI."
+tags = ["education", "mathematics", "computer-science", "artificial-intelligence",
+        "algorithms", "desktop-widget"]
 dependencies = ["xdg-utils"]
 
 # --- Shared plugin settings (edited in Settings -> Plugins) -----------------
@@ -43,6 +44,21 @@ options = [
   { value = "first_year",   label_key = "settings.difficulty.first_year" },
   { value = "intermediate", label_key = "settings.difficulty.intermediate" },
   { value = "advanced",     label_key = "settings.difficulty.advanced" },
+]
+
+[[setting]]
+key = "domain"
+type = "select"
+label_key = "settings.domain.label"
+description_key = "settings.domain.description"
+default = "any"
+options = [
+  { value = "any",                        label_key = "settings.domain.any" },
+  { value = "mathematics",                label_key = "settings.domain.mathematics" },
+  { value = "applied_mathematics",        label_key = "settings.domain.applied_mathematics" },
+  { value = "algorithms_data_structures", label_key = "settings.domain.algorithms_data_structures" },
+  { value = "computer_science",           label_key = "settings.domain.computer_science" },
+  { value = "artificial_intelligence",    label_key = "settings.domain.artificial_intelligence" },
 ]
 
 [[setting]]

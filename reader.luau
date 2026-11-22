@@ -75,9 +75,10 @@ local function render()
 
   children[#children + 1] = ui.column({ gap = 5 }, {
     ui.label({
-      text = (fact.subject or "Mathematics"):upper()
+      text = (fact.domain or "Mathematics"):upper()
+        .. "  /  " .. (fact.subject or "Mathematics"):upper()
         .. "  ·  " .. (fact.level or "") .. "  ·  " .. (fact.kindLabel or ""),
-      fontSize = 10, fontWeight = "semibold", color = "secondary",
+      fontSize = 10, fontWeight = "semibold", color = "secondary", maxLines = 2,
     }),
     ui.label({ text = fact.title or "Untitled", fontSize = 21,
       fontWeight = "semibold", color = "on_surface" }),

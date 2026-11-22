@@ -30,10 +30,13 @@ function M.pick(facts, ctx)
     recentRank[timeline[i]] = (#timeline - i)
   end
 
-  local recentSubjects, recentKinds = {}, {}
-  for i = math.max(1, #timeline - 4), #timeline do
+  local recentSubjects, recentDomains, recentKinds = {}, {}, {}
+  for i = math.max(1, #timeline - 5), #timeline do
     local fact = byId[timeline[i]]
-    if fact then recentSubjects[fact.subject] = true end
+    if fact then
+      recentSubjects[fact.subject] = true
+      recentDomains[fact.domain] = true
+    end
   end
   for i = math.max(1, #timeline - 6), #timeline do
     local fact = byId[timeline[i]]
@@ -42,6 +45,7 @@ function M.pick(facts, ctx)
 
   local current = byId[ctx.currentId]
   local preferred = ctx.difficulty or "any"
+  local preferredDomain = ctx.domain or "any"
   local topics = ctx.topics or {}
   local hasTopics = #topics > 0
   local topicSet = {}
@@ -58,11 +62,15 @@ function M.pick(facts, ctx)
         score = score - 55 - (12 - recentRank[fact.id]) * 3
       end
       if recentSubjects[fact.subject] then score = score - 14 end
+      if recentDomains[fact.domain] then score = score - 12 else score = score + 4 end
       if not recentKinds[fact.kind] then score = score + 7 end
       if current and fact.difficulty ~= current.difficulty then score = score + 8 end
 
       if preferred ~= "any" then
         if fact.difficulty == preferred then score = score + 30 else score = score - 22 end
+      end
+      if preferredDomain ~= "any" then
+        if fact.domain == preferredDomain then score = score + 30 else score = score - 22 end
       end
       if hasTopics then
         if topicSet[fact.subject:lower()] then score = score + 22 else score = score - 10 end

@@ -68,8 +68,9 @@ for required_kind, required_id in (("service", "discovery"),
 
 settings = manifest.get("setting", [])
 setting_keys = {s.get("key") for s in settings}
-check(len(settings) >= 8, "plugin.toml: expected at least eight settings")
+check(len(settings) >= 9, "plugin.toml: expected at least nine settings")
 check("rotation_minutes" in setting_keys, "plugin.toml: rotation_minutes setting missing")
+check("domain" in setting_keys, "plugin.toml: domain setting missing")
 for setting in settings:
     key = setting.get("key", "")
     for field in ("label_key", "description_key"):
@@ -110,6 +111,55 @@ REQUIRED_FIELDS = {
 KINDS = {"theorem", "identity", "insight", "counterexample", "curiosity",
          "definition", "connection", "algorithm"}
 LEVELS = {"curiosity", "first_year", "intermediate", "advanced"}
+DOMAINS = {"Mathematics", "Applied Mathematics", "Algorithms & Data Structures",
+           "Computer Science", "Artificial Intelligence"}
+# Keep in sync with lib/model.luau's DOMAIN_BY_SUBJECT fallback.
+SUBJECT_DOMAINS = {
+    "Mathematics of Computing": "Computer Science",
+    "Computability & Logic": "Computer Science",
+    "Complexity Theory": "Computer Science",
+    "Cryptography & Security": "Computer Science",
+    "Programming Languages": "Computer Science",
+    "Distributed Systems": "Computer Science",
+    "Information Theory": "Computer Science",
+    "Computer Networks": "Computer Science",
+    "Computer Architecture": "Computer Science",
+    "Data Structures": "Algorithms & Data Structures",
+    "Sorting & Searching": "Algorithms & Data Structures",
+    "Graph Algorithms": "Algorithms & Data Structures",
+    "Algorithm Analysis": "Algorithms & Data Structures",
+    "Advanced Data Structures": "Algorithms & Data Structures",
+    "Parallel & External Algorithms": "Algorithms & Data Structures",
+    "String Algorithms": "Algorithms & Data Structures",
+    "Machine Learning": "Artificial Intelligence",
+    "Neural Networks": "Artificial Intelligence",
+    "Optimization": "Artificial Intelligence",
+    "Reinforcement Learning": "Artificial Intelligence",
+    "Probabilistic AI": "Artificial Intelligence",
+    "Natural Language Processing": "Artificial Intelligence",
+    "Computer Vision": "Artificial Intelligence",
+    "AI Safety & Interpretability": "Artificial Intelligence",
+    "Machine Learning Theory": "Artificial Intelligence",
+    "Multimodal AI": "Artificial Intelligence",
+    "AI Systems & Evaluation": "Artificial Intelligence",
+    "Game Theory": "Applied Mathematics",
+    "Mathematical Biology": "Applied Mathematics",
+    "Control Theory": "Applied Mathematics",
+    "Signal Processing": "Applied Mathematics",
+    "Stochastic Calculus": "Applied Mathematics",
+    "Mathematical Economics": "Applied Mathematics",
+    "Database Systems": "Computer Science",
+    "Operating Systems": "Computer Science",
+    "Compilers & Runtime Systems": "Computer Science",
+    "Software Engineering": "Computer Science",
+    "Computer Graphics": "Computer Science",
+    "Parallel Computing": "Computer Science",
+    "Formal Methods": "Computer Science",
+    "Applied Mathematics": "Applied Mathematics",
+    "Mathematical Physics": "Applied Mathematics",
+    "Differential Equations": "Applied Mathematics",
+    "Numerical Analysis": "Applied Mathematics",
+}
 facts: list[dict] = []
 dataset_files = sorted((ROOT / "data").glob("*.json"))
 check(len(dataset_files) >= 6, "data/: expected at least six subject files")
@@ -118,8 +168,11 @@ for path in dataset_files:
     check(isinstance(data, list) and len(data) > 0, f"{path.name}: not a non-empty array")
     for index, fact in enumerate(data):
         label = f"{path.name}#{index + 1}"
-        check(set(fact) == REQUIRED_FIELDS,
+        check(REQUIRED_FIELDS <= set(fact) <= REQUIRED_FIELDS | {"domain"},
               f"{label}: field mismatch {set(fact) ^ REQUIRED_FIELDS}")
+        declared_domain = fact.get("domain")
+        if declared_domain is not None:
+            check(declared_domain in DOMAINS, f"{label}: bad domain {declared_domain}")
         check(re.fullmatch(r"[a-z][a-z0-9-]*", fact.get("id", "")),
               f"{label}: invalid id {fact.get('id')}")
         check(fact.get("difficulty") in LEVELS, f"{label}: bad difficulty")
@@ -148,6 +201,12 @@ check(len(subjects) >= 8, f"dataset: only {len(subjects)} subjects")
 for level in LEVELS:
     check(any(f["difficulty"] == level for f in facts),
           f"dataset: no facts at difficulty {level}")
+derived_domains = {
+    f.get("domain") or SUBJECT_DOMAINS.get(f["subject"], "Mathematics")
+    for f in facts
+}
+for domain in DOMAINS:
+    check(domain in derived_domains, f"dataset: no facts in domain {domain}")
 
 # --- Luau source -------------------------------------------------------------
 
@@ -243,7 +302,8 @@ for action in re.findall(r'sendCommand\("([^"]+)"\)',
 
 adapter_source = read(ROOT / "lib" / "sources.luau")
 for endpoint in ("en.wikipedia.org/w/api.php", "quantamagazine.org/feed/",
-                 "api.stackexchange.com/2.3/search/advanced"):
+                 "api.stackexchange.com/2.3/search/advanced",
+                 "export.arxiv.org/api/query"):
     check(endpoint in adapter_source, f"lib/sources.luau: missing endpoint {endpoint}")
 
 # --- Summary -----------------------------------------------------------------

@@ -162,7 +162,7 @@ local quanta = {
   name = "Quanta Magazine",
   network = true,
   fetch = function(_ctx, done)
-    httpText("https://www.quantamagazine.org/feed/", function(body, err)
+    httpText("https://www.quantamagazine.org/feed/", nil, function(body, err)
       if not body then done(nil, err) return end
       local out = {}
       local fallback = {}
@@ -220,7 +220,50 @@ local stackexchange = {
   end,
 }
 
-M.adapters = { wikipedia, quanta, stackexchange }
+-- Preprint metadata for the newer mathematics, ADS and AI entries. Only the
+-- title, link and a short openly-licensed abstract excerpt are kept; no paper
+-- text is stored and no claim from a preprint is ever shown as a curated fact.
+local ARXIV_CATEGORY = {
+  ["Mathematics"] = "math",
+  ["Applied Mathematics"] = "math.NA",
+  ["Algorithms & Data Structures"] = "cs.DS",
+  ["Computer Science"] = "cs",
+  ["Artificial Intelligence"] = "cs.AI",
+}
+
+local arxiv = {
+  id = "arxiv",
+  name = "arXiv",
+  network = true,
+  fetch = function(ctx, done)
+    local category = ARXIV_CATEGORY[ctx.domain or ""] or "math"
+    local subject = tostring(ctx.subject or ""):gsub("[^%w ]", " ")
+    local query = "cat:" .. category
+    if subject ~= "" then query = query .. "+AND+all:" .. noctalia.string.urlEncode(subject) end
+    local url = "https://export.arxiv.org/api/query?search_query=" .. query
+      .. "&start=0&max_results=3&sortBy=submittedDate&sortOrder=descending"
+    httpText(url, {
+      "Accept: application/atom+xml",
+      "User-Agent: " .. USER_AGENT,
+    }, function(body, err)
+      if not body then done(nil, err) return end
+      local out = {}
+      local now = noctalia.nowMs()
+      for entry in body:gmatch("<entry>(.-)</entry>") do
+        local title = stripTags(entry:match("<title>(.-)</title>") or "")
+        local link = stripTags(entry:match("<id>(.-)</id>") or "")
+        local summary = stripTags(entry:match("<summary>(.-)</summary>") or "")
+        if title ~= "" and link:match("^https?://arxiv%.org/") then
+          out[#out + 1] = record("arxiv", "arXiv", title, link, summary,
+            "reading", nil, now)
+        end
+      end
+      done(out, nil)
+    end)
+  end,
+}
+
+M.adapters = { wikipedia, quanta, stackexchange, arxiv }
 
 -- --- Orchestration ---------------------------------------------------------
 

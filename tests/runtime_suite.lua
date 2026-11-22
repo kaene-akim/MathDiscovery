@@ -68,6 +68,7 @@ local clockMs = 1700000000000
 local config = {
   rotation_minutes = 5,
   difficulty = "any",
+  domain = "any",
   topics = {},
   show_explanation = true,
   animations = false,
@@ -148,6 +149,13 @@ local function fakeHttp(request, callback)
       '<?xml version="1.0"?><rss><channel><item><title>A new proof of a theorem about primes</title>'
       .. '<link>https://www.quantamagazine.org/example-article/</link>'
       .. '<description>Mathematicians found a shorter argument.</description></item></channel></rss>' })
+  elseif request.url:find("export.arxiv.org", 1, true) then
+    callback({ ok = true, status = 200, body =
+      '<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><entry>'
+      .. '<title>A survey of the cited topic</title>'
+      .. '<id>https://arxiv.org/abs/2401.00001</id>'
+      .. '<summary>A short preprint abstract used only as a reading link.</summary>'
+      .. '</entry></feed>' })
   elseif request.url:find("api.stackexchange.com", 1, true) then
     local body = json.encode({
       items = { {
@@ -211,6 +219,17 @@ noctalia = {
   state = state,
 }
 
+local expectedLibrarySize = 0
+do
+  for _, name in ipairs(noctalia.listDir("data") or {}) do
+    if name:match("%.json$") then
+      local raw = readFile("data/" .. name)
+      local ok, list = pcall(json.decode, raw)
+      if ok and type(list) == "table" then expectedLibrarySize = expectedLibrarySize + #list end
+    end
+  end
+end
+
 local function loadService()
   watchers = {}
   dofile(ROOT .. "/discovery.luau")
@@ -232,8 +251,13 @@ loadService()
 do
   local first = view()
   check(first.status == "ready", "service should start ready")
-  check(first.librarySize == 112, "expected 112 curated facts, got " .. tostring(first.librarySize))
-  check(first.fact and first.fact.id and first.fact.title, "first fact must be complete")
+  check(first.librarySize == expectedLibrarySize,
+    "library size mismatch: view=" .. tostring(first.librarySize)
+    .. " files=" .. tostring(expectedLibrarySize))
+  check(first.librarySize > 1000, "expanded library should contain over a thousand facts")
+  check(type(first.domainCounts) == "table", "view should publish domain counts")
+  check(first.fact and first.fact.id and first.fact.title and first.fact.domain,
+    "first fact must be complete and classified by domain")
   check(first.fact.statement and first.fact.long and first.fact.proof,
     "fact must include statement, explanation and proof")
   check(first.fact.sourceUrl and first.fact.sourceUrl:match("^https://en.wikipedia.org/wiki/"),
@@ -318,6 +342,18 @@ do
     "published visited count should match the persisted timeline")
 end
 
+-- --- 5b. Domain preference --------------------------------------------------
+
+do
+  config.domain = "artificial_intelligence"
+  loadService()
+  onIpc("next")
+  check(view().fact.domain == "Artificial Intelligence",
+    "domain preference should favour AI facts: " .. tostring(view().fact.domain))
+  config.domain = "any"
+  loadService()
+end
+
 -- --- 6. Supplementary sources: success, failure and malformed responses ----
 
 do
@@ -329,7 +365,10 @@ do
   check(view().reference ~= nil, "Wikipedia adapter should supply a matching reference")
   check(view().reference.wikiTitle == view().fact.wiki, "reference must match the current fact")
   check(view().reading ~= nil, "a reading link should be available after a successful check")
-  check(#httpCalls == 3, "one refresh should call all three adapters, got " .. tostring(#httpCalls))
+  check(#httpCalls == 4, "one refresh should call all four adapters, got " .. tostring(#httpCalls))
+  check(tostring(httpCalls[4]):find("export.arxiv.org", 1, true) ~= nil,
+    "the fourth adapter should query arXiv metadata")
+  check((view().sourceCount or 0) >= 4, "all four adapters should contribute records")
 
   local before = view().fact.id
   httpMode = "garbage"

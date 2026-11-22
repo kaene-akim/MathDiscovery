@@ -10,6 +10,15 @@
   "settings.difficulty.intermediate": "Intermediate",
   "settings.difficulty.advanced": "Advanced",
 
+  "settings.domain.label": "Preferred area",
+  "settings.domain.description": "Favour one area without hiding the others: pure or applied mathematics, algorithms and data structures, computer science, or artificial intelligence.",
+  "settings.domain.any": "All areas (recommended)",
+  "settings.domain.mathematics": "Mathematics",
+  "settings.domain.applied_mathematics": "Applied mathematics",
+  "settings.domain.algorithms_data_structures": "Algorithms & data structures",
+  "settings.domain.computer_science": "Computer science",
+  "settings.domain.artificial_intelligence": "Artificial intelligence",
+
   "settings.topics.label": "Preferred subjects",
   "settings.topics.description": "Subject names such as Number Theory, Graph Theory or Topology. Empty means every subject.",
 
@@ -20,7 +29,7 @@
   "settings.card_transparency.description": "0% is a solid card; 100% removes the card background. Text stays fully readable at every value.",
 
   "settings.enable_sources.label": "Enable supplementary sources",
-  "settings.enable_sources.description": "Fetch a small amount of reference metadata from Wikipedia, Quanta Magazine and Math Stack Exchange at most once a day. The curated library works fully offline.",
+  "settings.enable_sources.description": "Fetch a small amount of reference metadata from Wikipedia, Quanta Magazine, Math Stack Exchange and arXiv at most once a day. The curated library works fully offline.",
 
   "settings.source_cadence_hours.label": "Source check interval (hours)",
   "settings.source_cadence_hours.description": "Minimum time between source checks. Failed checks back off automatically.",

@@ -22,6 +22,14 @@ local TICK_MS = 30 * 1000
 local FIRST_SOURCE_DELAY_MS = 20 * 1000
 local MANUAL_FETCH_GUARD_MS = 5 * 60 * 1000
 
+local DOMAIN_BY_CONFIG = {
+  mathematics = "Mathematics",
+  applied_mathematics = "Applied Mathematics",
+  algorithms_data_structures = "Algorithms & Data Structures",
+  computer_science = "Computer Science",
+  artificial_intelligence = "Artificial Intelligence",
+}
+
 local config = {}
 local facts = {}
 local factById = {}
@@ -37,6 +45,7 @@ local nextSourceCheckMs = 0
 local lastFetchStartMs = 0
 local fetching = false
 local loadErrors = {}
+local domainCounts = {}
 
 -- --- Configuration ---------------------------------------------------------
 
@@ -45,6 +54,7 @@ local function readConfig()
   config.rotationMs = math.max(5, minutes) * 60 * 1000
 
   config.difficulty = noctalia.getConfig("difficulty") or "any"
+  config.domain = DOMAIN_BY_CONFIG[noctalia.getConfig("domain")] or "any"
 
   config.topics = {}
   local topics = noctalia.getConfig("topics")
@@ -126,6 +136,8 @@ local function publish()
     position = persisted.cursor or 0,
     visited = #(persisted.timeline or {}),
     librarySize = #facts,
+    domainCounts = domainCounts,
+    domains = model.DOMAINS,
     canPrev = (persisted.cursor or 0) > 1,
     favorite = currentId and isFavorite(currentId) or false,
     showExplanation = config.showExplanation,
@@ -159,6 +171,7 @@ local function selectNew()
     timeline = persisted.timeline,
     currentId = currentId,
     difficulty = config.difficulty,
+    domain = config.domain,
     topics = config.topics,
     nowMs = noctalia.nowMs(),
   })
@@ -238,6 +251,7 @@ local function sourceContext()
   return {
     titles = titles,
     subject = current and current.subject or "mathematics",
+    domain = current and current.domain or "Mathematics",
     enabled = config.enableSources,
     cadenceMs = config.cadenceMs,
   }
@@ -303,7 +317,10 @@ end)
 readConfig()
 
 facts, loadErrors = model.loadFacts()
-for _, fact in ipairs(facts) do factById[fact.id] = fact end
+for _, fact in ipairs(facts) do
+  factById[fact.id] = fact
+  domainCounts[fact.domain] = (domainCounts[fact.domain] or 0) + 1
+end
 if #loadErrors > 0 then
   noctalia.log("Math Discovery: " .. #loadErrors .. " dataset problem(s); first: " .. loadErrors[1])
 end
