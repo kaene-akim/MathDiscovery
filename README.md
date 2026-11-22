@@ -69,7 +69,7 @@ plugin.toml
 │   ├── store.luau        durable state in noctalia.pluginDataDir()
 │   ├── selection.luau    non-repeating, diversified selection (area/subject/kind/level)
 │   └── sources.luau      Wikipedia / Quanta / Stack Exchange / arXiv adapters
-├── data/*.json           curated subject files plus generated per-area files
+├── data/*.json           curated subject files plus small generated chunks
 ├── tools/                offline dataset builder and wiki-title verifier
 ├── translations/en.json  settings labels and descriptions
 └── tests/                offline static and runtime suites
@@ -195,13 +195,13 @@ Facts are authored compactly and expanded by a build step; see `tools/README.md`
 
 ```sh
 # 1. add records to tools/catalog/<area>.json
-python3 tools/build_dataset.py       # writes data/generated-*.json
+python3 tools/build_dataset.py       # writes data/chunk-*.json (50 facts each)
 python3 tools/verify_wiki.py --fix   # optional, needs network
 python3 tests/validate.py
 lua tests/runtime_suite.lua
 ```
 
-The builder refuses duplicate ids/titles and stamps a shared retrieval date, so the library can grow to very large sizes without hand-editing every output file. Hand-written files in `data/` are never overwritten.
+The builder refuses duplicate ids/titles and stamps a shared retrieval date, so the library can grow to very large sizes without hand-editing every output file. Hand-written files in `data/` are never overwritten. Generated facts are written as small `chunk-*.json` files (50 facts each) because Noctalia charges each script callback for CPU time; the service loads one chunk per tick so every fact becomes available without exceeding that budget.
 
 ---
 

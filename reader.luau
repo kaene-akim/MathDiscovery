@@ -45,11 +45,15 @@ local function openUrl(url)
 end
 
 local function render()
-  if not view or view.status == "empty" then
+  if not view or view.status == "empty" or view.status == "loading" then
+    local message = "Loading the fact library…"
+    if not view or view.status == "empty" then
+      message = "No fact is available yet."
+    end
     panel.render(ui.column({ padding = 24, gap = 12 }, {
       ui.label({ text = "MATHEMATICAL DISCOVERY", fontSize = 10,
         fontWeight = "bold", color = "primary" }),
-      ui.label({ text = "No fact is available yet.", fontSize = 13, color = "on_surface/0.7" }),
+      ui.label({ text = message, fontSize = 13, color = "on_surface/0.7" }),
       ui.button({ text = "Close", onClick = "onClosePanel" }),
     }))
     return

@@ -19,6 +19,7 @@ local CMD_KEY  = "mathdiscovery.cmd"
 
 local TIMELINE_LIMIT = 200
 local TICK_MS = 30 * 1000
+local LOAD_TICK_MS = 100
 local FIRST_SOURCE_DELAY_MS = 20 * 1000
 local MANUAL_FETCH_GUARD_MS = 5 * 60 * 1000
 
@@ -46,6 +47,10 @@ local lastFetchStartMs = 0
 local fetching = false
 local loadErrors = {}
 local domainCounts = {}
+local loadQueue = {}
+local loadSeen = {}
+local loadFailures = {}
+local loading = false
 
 -- --- Configuration ---------------------------------------------------------
 
@@ -130,7 +135,8 @@ end
 
 local function publish()
   local view = {
-    status = #facts > 0 and "ready" or "empty",
+    status = loading and "loading" or (#facts > 0 and "ready" or "empty"),
+    loading = loading,
     revision = revision,
     fact = factById[currentId] or {},
     position = persisted.cursor or 0,
@@ -308,6 +314,7 @@ noctalia.state.watch(CMD_KEY, function(value)
   if not seq or not action then return end
   if seq <= lastCommandSeq then return end -- duplicate click / replayed value
   lastCommandSeq = seq
+  if loading then return end -- wait until the whole library is available
   local handler = COMMANDS[action]
   if handler then handler() end
 end)
@@ -315,32 +322,74 @@ end)
 -- --- Lifecycle -------------------------------------------------------------
 
 readConfig()
-
-facts, loadErrors = model.loadFacts()
-for _, fact in ipairs(facts) do
-  factById[fact.id] = fact
-  domainCounts[fact.domain] = (domainCounts[fact.domain] or 0) + 1
-end
-if #loadErrors > 0 then
-  noctalia.log("Math Discovery: " .. #loadErrors .. " dataset problem(s); first: " .. loadErrors[1])
-end
-
 persisted = store.loadState()
 sourceState = store.loadSources()
-repairTimeline()
 
-if not currentId and #facts > 0 then
-  selectNew()
-elseif config.catchUpOnStart and noctalia.nowMs() - lastShownAtMs >= config.rotationMs then
-  selectNew()
-else
-  lastShownAtMs = math.min(lastShownAtMs, noctalia.nowMs())
-  persist()
+-- Decoding thousands of facts in one startup chunk exceeds Noctalia's
+-- per-callback CPU budget, which silently dropped the last data file(s). Load
+-- one file per tick instead; rotation and history start only when every file
+-- has been merged, so the full library is available from the first fact shown.
+local function finishLoad()
+  loading = false
+  if #loadErrors > 0 then
+    noctalia.log("Math Discovery: " .. #loadErrors .. " dataset problem(s); first: " .. loadErrors[1])
+  end
+  repairTimeline()
+  if not currentId and #facts > 0 then
+    selectNew()
+  elseif config.catchUpOnStart and noctalia.nowMs() - lastShownAtMs >= config.rotationMs then
+    selectNew()
+  else
+    lastShownAtMs = math.min(lastShownAtMs, noctalia.nowMs())
+    persist()
+  end
+  noctalia.setUpdateInterval(TICK_MS)
+  publish()
 end
 
-publish()
+local function pumpLoad()
+  if not loading then return end
+  local name = loadQueue[1]
+  if name then
+    local firstNew = #facts + 1
+    local ok, result = pcall(model.loadFactFile, name, facts, loadSeen)
+    if ok then
+      table.remove(loadQueue, 1)
+      for _, problem in ipairs(result) do
+        loadErrors[#loadErrors + 1] = problem
+      end
+      for index = firstNew, #facts do
+        local fact = facts[index]
+        factById[fact.id] = fact
+        domainCounts[fact.domain] = (domainCounts[fact.domain] or 0) + 1
+      end
+    else
+      -- The host can interrupt a callback for exceeding its CPU budget. Keep
+      -- the chunk at the head of the queue and retry on the next tick; if it
+      -- is permanently broken, stop retrying after a few attempts.
+      loadFailures[name] = (loadFailures[name] or 0) + 1
+      if loadFailures[name] >= 5 then
+        table.remove(loadQueue, 1)
+        loadErrors[#loadErrors + 1] = name .. ": " .. tostring(result)
+      end
+    end
+  end
+  if #loadQueue == 0 then
+    finishLoad()
+  else
+    publish()
+  end
+end
+
+loadQueue, loadErrors = model.factFiles()
+loading = #loadQueue > 0
+if loading then
+  publish()
+  noctalia.setUpdateInterval(LOAD_TICK_MS)
+else
+  finishLoad()
+end
 nextSourceCheckMs = noctalia.nowMs() + FIRST_SOURCE_DELAY_MS
-noctalia.setUpdateInterval(TICK_MS)
 
 function onConfigChanged()
   readConfig()
@@ -352,7 +401,12 @@ function onConfigChanged()
   end
 end
 
-function update()
+local function updateInner()
+  if loading then
+    pumpLoad()
+    return
+  end
+
   local now = noctalia.nowMs()
 
   if #facts > 0 and now - lastShownAtMs >= config.rotationMs then
@@ -372,14 +426,25 @@ function update()
   end
 end
 
-function onIpc(event, payload)
+-- A single oversized callback can make the host stop calling update() entirely.
+-- Keep the timer alive even if one tick is interrupted, and log what happened.
+function update()
+  local ok, err = pcall(updateInner)
+  if not ok then
+    noctalia.log("Math Discovery: update tick failed: " .. tostring(err))
+  end
+end
+
+local function onIpcInner(event, payload)
+  if loading and event ~= "status" then return end
   local handler = COMMANDS[event]
   if handler then
     handler()
   elseif event == "status" then
     noctalia.log(string.format(
       "Math Discovery: %d facts, %d visited, current=%s, sources=%d",
-      #facts, #persisted.timeline, tostring(currentId), #sources.allRecords(sourceState)))
+      #facts, #(persisted.timeline or {}), tostring(currentId),
+      #sources.allRecords(sourceState)))
   elseif event == "open" then
     -- Jump straight to a fact by id (useful for keybinds and testing). An id
     -- outside the timeline is appended so next/prev keep working afterwards.
@@ -400,6 +465,13 @@ function onIpc(event, payload)
       end
       showAt(#persisted.timeline)
     end
+  end
+end
+
+function onIpc(event, payload)
+  local ok, err = pcall(onIpcInner, event, payload)
+  if not ok then
+    noctalia.log("Math Discovery: IPC " .. tostring(event) .. " failed: " .. tostring(err))
   end
 end
 

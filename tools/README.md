@@ -10,8 +10,10 @@ development-time helpers for growing that library:
    ```sh
    python3 tools/build_dataset.py
    ```
-   This writes one `data/generated-<domain>.json` per area and refuses to
-   continue on duplicate ids/titles or malformed records.
+   This writes small `data/chunk-<area>-NNN.json` files (50 facts each) and
+   refuses to continue on duplicate ids/titles or malformed records. Small
+   chunks matter: Noctalia enforces a CPU budget per script callback, and a
+   single large JSON array cannot be decoded in one callback.
 3. **Verify wiki titles** (optional, needs network):
    ```sh
    python3 tools/verify_wiki.py --fix
@@ -25,6 +27,6 @@ development-time helpers for growing that library:
    noctalia plugins lint /home/akim/MathDiscovery
    ```
 
-Re-running the builder overwrites only `generated-*.json`; hand-written files
-in `data/` are left untouched. Keep newly authored records in `tools/catalog/`
+Re-running the builder replaces only `chunk-*.json` (and any legacy
+`generated-*.json`); hand-written files in `data/` are left untouched. Keep newly authored records in `tools/catalog/`
 so the generated output can always be reproduced.

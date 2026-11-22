@@ -233,6 +233,25 @@ end
 local function loadService()
   watchers = {}
   dofile(ROOT .. "/discovery.luau")
+
+  -- The service loads data files across ticks to stay inside Noctalia's
+  -- per-callback CPU budget. Drive those ticks before asserting on the view.
+  local initial = decodeState("mathdiscovery.view")
+  check(type(initial) == "table", "service should publish an initial view")
+  if initial.loading then
+    local before = initial.librarySize or 0
+    update()
+    local after = decodeState("mathdiscovery.view")
+    check((after.librarySize or 0) >= before, "incremental load must not lose facts")
+  end
+  local guard = 0
+  while decodeState("mathdiscovery.view").loading do
+    update()
+    guard = guard + 1
+    check(guard < 100, "incremental loader did not finish")
+  end
+  check(decodeState("mathdiscovery.view").loading == false,
+    "library should be fully loaded")
 end
 
 local function view()

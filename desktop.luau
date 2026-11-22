@@ -43,11 +43,13 @@ end
 
 local function render()
   local rows = {}
-  if not view or view.status == "empty" then
+  if not view or view.status == "empty" or view.status == "loading" then
+    local message = "Preparing the first discovery…"
+    if view and view.status == "empty" then
+      message = "No facts were loaded. Check the plugin's data directory."
+    end
     rows[#rows + 1] = ui.label({
-      text = (view and view.status == "empty")
-        and "No facts were loaded. Check the plugin's data directory."
-        or "Preparing the first discovery…",
+      text = message,
       fontSize = 17, fontFamily = SERIF, color = "on_surface",
       maxLines = 3,
     })

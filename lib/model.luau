@@ -112,6 +112,14 @@ local function isHttpUrl(value)
   return value:match("^https://") ~= nil or value:match("^http://") ~= nil
 end
 
+-- Precomputed once per fact so the selector never has to build temporary
+-- strings for thousands of entries inside one Noctalia callback.
+local function hash(text)
+  local h = 5381
+  for i = 1, #text do h = ((h * 33) + text:byte(i)) % 2147483647 end
+  return h
+end
+
 local ALLOWED_DIFFICULTY = {}
 for _, level in ipairs(M.DIFFICULTIES) do ALLOWED_DIFFICULTY[level] = true end
 
@@ -165,6 +173,8 @@ function M.normalise(raw, index)
     id            = id,
     title         = title,
     subject       = subject,
+    subjectLower  = subject:lower(),
+    orderHash     = hash(id),
     domain        = M.domainFor(raw.domain, subject),
     kind          = kind,
     difficulty    = difficulty,
@@ -204,47 +214,76 @@ function M.encode(value, pretty)
   return encoded, nil
 end
 
--- Load every data/*.json file. Splitting the library by subject keeps the files
--- reviewable and lets new facts be added by dropping in another JSON array.
-function M.loadFacts()
-  local facts = {}
-  local problems = {}
-  local seen = {}
-
+-- Listing the data directory is cheap; decoding and normalising thousands of
+-- facts is not. Noctalia charges each script callback for CPU time, so the
+-- service lists files here and then loads them one per update tick through
+-- loadFactFile(). That keeps every callback well inside its budget.
+function M.factFiles()
+  local names, problems = {}, {}
   local files, listErr = noctalia.listDir("data")
   if not files then
-    return facts, { "cannot list data/: " .. tostring(listErr) }
+    problems[1] = "cannot list data/: " .. tostring(listErr)
+    return names, problems
   end
   table.sort(files)
-
   for _, name in ipairs(files) do
-    if name:match("%.json$") then
-      local raw, readErr = noctalia.readFile("data/" .. name)
-      if not raw then
-        problems[#problems + 1] = name .. ": " .. tostring(readErr)
-      else
-        local list, decodeErr = M.decode(raw)
-        if not list or type(list) ~= "table" then
-          problems[#problems + 1] = name .. ": " .. tostring(decodeErr)
-        elseif not (#list > 0) and next(list) == nil then
-          -- empty array is fine, e.g. an optional extension pack
-        else
-          for index, item in ipairs(list) do
-            local fact, why = M.normalise(item, name .. "#" .. index)
-            if not fact then
-              problems[#problems + 1] = why
-            elseif seen[fact.id] then
-              problems[#problems + 1] = fact.id .. ": duplicate id"
-            else
-              seen[fact.id] = true
-              facts[#facts + 1] = fact
-            end
-          end
-        end
-      end
-    end
+    if name:match("%.json$") then names[#names + 1] = name end
+  end
+  return names, problems
+end
+
+-- Decode a single data file and append its normalised facts to `facts`. `seen`
+-- is shared across files so duplicate ids are still detected library-wide.
+function M.loadFactFile(name, facts, seen)
+  local problems = {}
+  local raw, readErr = noctalia.readFile("data/" .. name)
+  if not raw then
+    problems[#problems + 1] = name .. ": " .. tostring(readErr)
+    return problems
+  end
+  local list, decodeErr = M.decode(raw)
+  if not list or type(list) ~= "table" then
+    problems[#problems + 1] = name .. ": " .. tostring(decodeErr)
+    return problems
+  end
+  if not (#list > 0) and next(list) == nil then
+    -- empty array is fine, e.g. an optional extension pack
+    return problems
   end
 
+  -- Stage this file's facts before committing. If Noctalia interrupts the
+  -- callback mid-file, nothing is published and the caller can retry the whole
+  -- chunk without creating duplicate or half-loaded entries.
+  local added, addedSeen = {}, {}
+  for index, item in ipairs(list) do
+    local fact, why = M.normalise(item, name .. "#" .. index)
+    if not fact then
+      problems[#problems + 1] = why
+    elseif seen[fact.id] or addedSeen[fact.id] then
+      problems[#problems + 1] = fact.id .. ": duplicate id"
+    else
+      addedSeen[fact.id] = true
+      added[#added + 1] = fact
+    end
+  end
+  for _, fact in ipairs(added) do
+    seen[fact.id] = true
+    facts[#facts + 1] = fact
+  end
+  return problems
+end
+
+-- Single-shot convenience loader for tooling and tests. The live service uses
+-- factFiles()/loadFactFile() instead so a large library never runs in one chunk.
+function M.loadFacts()
+  local facts, problems, seen = {}, {}, {}
+  local names, listProblems = M.factFiles()
+  for _, problem in ipairs(listProblems) do problems[#problems + 1] = problem end
+  for _, name in ipairs(names) do
+    for _, problem in ipairs(M.loadFactFile(name, facts, seen)) do
+      problems[#problems + 1] = problem
+    end
+  end
   return facts, problems
 end
 

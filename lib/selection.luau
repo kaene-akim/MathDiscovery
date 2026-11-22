@@ -7,14 +7,6 @@
 
 local M = {}
 
-local function hash(text)
-  local h = 5381
-  for i = 1, #text do
-    h = ((h * 33) + text:byte(i)) % 2147483647
-  end
-  return h
-end
-
 function M.pick(facts, ctx)
   if #facts == 0 then return nil end
 
@@ -52,7 +44,9 @@ function M.pick(facts, ctx)
   for _, topic in ipairs(topics) do topicSet[topic:lower()] = true end
 
   local best, bestScore = nil, -math.huge
-  local nowBucket = math.floor((ctx.nowMs or 0) / 1000)
+  -- The tie-breaker uses hashes precomputed at load time. Building a string per
+  -- fact here used to push selection over Noctalia's per-callback CPU budget.
+  local bucket = math.floor((ctx.nowMs or 0) / 1000) % 23
 
   for _, fact in ipairs(facts) do
     if fact.id ~= ctx.currentId then
@@ -73,12 +67,16 @@ function M.pick(facts, ctx)
         if fact.domain == preferredDomain then score = score + 30 else score = score - 22 end
       end
       if hasTopics then
-        if topicSet[fact.subject:lower()] then score = score + 22 else score = score - 10 end
+        if topicSet[fact.subjectLower or fact.subject:lower()] then
+          score = score + 22
+        else
+          score = score - 10
+        end
       end
 
       -- A stable, time-bucketed tie-breaker: variety across sessions without
       -- making selection depend on a random seed that is lost on restart.
-      score = score + ((hash(fact.id .. ":" .. tostring(nowBucket)) % 23) / 10)
+      score = score + ((((fact.orderHash or 0) + bucket * 104729) % 23) / 10)
 
       if score > bestScore then
         best, bestScore = fact, score

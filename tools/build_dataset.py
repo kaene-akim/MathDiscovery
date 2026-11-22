@@ -39,13 +39,19 @@ KINDS = {
 
 LEVELS = {"curiosity", "first_year", "intermediate", "advanced"}
 
-OUTPUT_NAMES = {
-    "Mathematics": "generated-mathematics.json",
-    "Applied Mathematics": "generated-applied-mathematics.json",
-    "Algorithms & Data Structures": "generated-algorithms-data-structures.json",
-    "Computer Science": "generated-computer-science.json",
-    "Artificial Intelligence": "generated-artificial-intelligence.json",
+# Noctalia charges each script callback for CPU time. One JSON array per domain
+# is far too large to decode in a single callback, so generated facts are
+# written as small numbered chunks that the service can load one per tick.
+CHUNK_PREFIX = {
+    "Mathematics": "chunk-math-",
+    "Applied Mathematics": "chunk-applied-",
+    "Algorithms & Data Structures": "chunk-ads-",
+    "Computer Science": "chunk-cs-",
+    "Artificial Intelligence": "chunk-ai-",
 }
+# 25 facts per file is small enough that a single interrupted tick drops the
+# whole chunk (and is retried), rather than partially loading it.
+CHUNK_SIZE = 25
 
 FALLBACK_WIKI = {
     "Mathematics": "Mathematics",
@@ -65,7 +71,7 @@ def fail(label: str, message: str) -> None:
 def existing_facts() -> list[dict]:
     facts: list[dict] = []
     for path in sorted(DATA.glob("*.json")):
-        if path.name.startswith("generated-"):
+        if path.name.startswith("generated-") or path.name.startswith("chunk-"):
             continue
         try:
             value = json.loads(path.read_text(encoding="utf-8"))
@@ -189,14 +195,27 @@ def main() -> int:
         return 1
 
     DATA.mkdir(parents=True, exist_ok=True)
-    for domain, name in OUTPUT_NAMES.items():
+
+    # Remove the old one-file-per-domain outputs. Keeping them would load every
+    # generated fact twice and reintroduce the CPU-budget failure.
+    for path in DATA.glob("generated-*.json"):
+        path.unlink()
+    for path in DATA.glob("chunk-*.json"):
+        path.unlink()
+
+    for domain, prefix in CHUNK_PREFIX.items():
         facts = by_domain[domain]
         if not facts:
             continue
         facts.sort(key=lambda item: item["id"])
-        (DATA / name).write_text(
-            json.dumps(facts, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-        )
+        for offset in range(0, len(facts), CHUNK_SIZE):
+            part = facts[offset:offset + CHUNK_SIZE]
+            index = offset // CHUNK_SIZE + 1
+            name = f"{prefix}{index:03d}.json"
+            (DATA / name).write_text(
+                json.dumps(part, ensure_ascii=False, separators=(",", ":")) + "\n",
+                encoding="utf-8",
+            )
 
     width = max(len(domain) for domain in DOMAINS)
     for domain in sorted(DOMAINS):
